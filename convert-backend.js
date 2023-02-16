@@ -1,10 +1,11 @@
+require('dotenv').config();
+
 const express = require('express');
 const fileUpload = require('express-fileupload');
 const fs = require('fs-extra');
 const sharp = require('sharp');
-
+const AdmZip = require('adm-zip');
 const app = express();
-const PORT = 3000;
 
 //Initializing fileUpload
 app.use(fileUpload());
@@ -17,80 +18,104 @@ app.use(fileUpload());
  */
 fs.emptyDir('./processed');
 fs.emptyDir('./uploaded');
-
+fs.emptyDir('./zipped');
 
 // Start listening for requests on assigned port
-app.listen(PORT, () => {
-    console.log(`Listening on PORT ${PORT}`);
+app.listen(process.env.PORT, () => {
+    console.log(`Listening on PORT ${process.env.PORT}`);
 });
 
 // Upload endpoint
-app.post('/upload', function(req, res) {
+app.post('/upload', async function(req, res) {
+    console.log(req);
     // Check to see if files were uploaded
     if (!req.files || Object.keys(req.files).length === 0) {
         return res.status(400).send('No files were uploaded.');
     }
     
+    // Because JS is special imgToUpload when multiple files are uploaded, it's an array. When a single image is uploaded it is not.
+    // To support processing multiple images we check if the length is undefined. If a single image is uploaded store it to an array and process it
+    // if not change the imgs variable from an empty array to the imgToUpload array
+    let imgs = [];
+    if(req.files.imgToUpload.length === undefined)
+        imgs.push(req.files.imgToUpload);
+    else
+        imgs = req.files.imgToUpload;
+    
+    setupImageProcessing(req, res, imgs);
+    
+    // Zip all of the files in the processed directory and send the download
+    function zipProcessed() {
+        const zip = new AdmZip();
+        //Give a timestamp to the zipped folder
+        var timestamp = new Date().getTime();
+        const outputFile = `./zipped/Processed_Images_${Math.floor(timestamp / 1000)}.zip`;
+        zip.addLocalFolder("./processed");
+        zip.writeZip(outputFile);
+        res.download(outputFile);
 
-    let uploadedImg = req.files.imgToUpload;
+        //Clean out processed and zipped directories
+        fs.emptyDir('./processed');
+        fs.emptyDir('./zipped');
+    }
 
-    /**
-     * Setting correct file name
-     * - If resize was requested use the original file name which includes the original file extension
-     * - If convert was requested use the original file name and change the extension to the converted ext (ie: original ext is .png converted ext is .webp)
-     */
-    let convertedFileName;
-
-    // If resize was requested or converted file ext was left empty use the original file extension
-    if(req.body.fileExt === "empty"){
-        convertedFileName = uploadedImg.name;
-    }else{
-        // Split the uploaded file name into [file name, file ext] get the name and append the converted extension to it
-        convertedFileName = uploadedImg.name.split('.')[0] + '.' + req.body.fileExt;
+    //If imgs array contains one image we need to set the appropriate amount of time to wait until the image has processed
+    if (imgs.length === 1) {
+        setTimeout(zipProcessed, env.MOD_Batch);
+    } else {
+        //delay the start of zip operation by length of imgs * modifier (num of ms it takes on avg to process an img)
+        setTimeout(zipProcessed, imgs.length*process.env.MOD_Single);    
     }
     
-    let uploadedFilePath = "./uploaded/" + uploadedImg.name; // get the uploaded image and it's path
-    let processedFilePath = "./processed/" + convertedFileName; // where the processed file will be stored and it's name
+});
 
-    //Use the mv() method to place the file in the "/uploaded" dir on the server
-    uploadedImg.mv(uploadedFilePath, function(err) {
-        if (err)
-            return res.status(500).send(err);
+function setupImageProcessing(req, res, imgs) {
+    imgs.forEach(uploadedImg => {
         
-        //Run the convert function if it was selected
-        if(req.body.function === 'convert'){
-            
-            // If the "Convert the image to" dropdown was the same file extension as the uploaded img 
-            // DO NOT perform the conversion just return the uploaded file
-            if(req.body.function === 'convert' && req.body.fileExt === uploadedImg.name.split('.')[1]){
-                fs.move(uploadedFilePath, processedFilePath);
-                res.send('No conversion needed check processed');
+        /**
+         * Setting correct file name
+         * - If resize was requested use the original file name which includes the original file extension
+         * - If convert was requested use the original file name and change the extension to the converted ext (ie: original ext is .png converted ext is .webp)
+         */
+        let convertedFileName;
 
-            //Otherwise perform the conversion
-            }else{
-                convert(req, res, uploadedFilePath, processedFilePath);
-            }
-            
+        // If resize was requested or converted file ext was left empty use the original file extension
+        if(req.body.fileExt === "empty"){
+            convertedFileName = uploadedImg.name;
+        }else{
+            // Split the uploaded file name into [file name, file ext] get the name and append the converted extension to it
+            convertedFileName = uploadedImg.name.split('.')[0] + '.' + req.body.fileExt;
         }
         
-        //Call the resize function
-        if(req.body.function === 'resize')
-            resize(req, res, uploadedFilePath, processedFilePath);
-    });
-});
+        let uploadedFilePath = "./uploaded/" + uploadedImg.name; // get the uploaded image and it's path
+        let processedFilePath = "./processed/" + convertedFileName; // where the processed file will be stored and it's name
 
-/**
-app.post('/multi', function(req, res){
-    // Check to see if files were uploaded
-    if (!req.files || Object.keys(req.files).length === 0) {
-        return res.status(400).send('No files were uploaded.');
-    }
-    let temp;
-    temp = req.files.imgToUpload;
-    console.log(temp.length);
-    res.status(200);
-});
- */
+        //Use the mv() method to place the file in the "/uploaded" dir on the server
+        uploadedImg.mv(uploadedFilePath, function(err) {
+            if (err)
+                return res.status(500).send(err);
+            
+            //Run the convert function if it was selected
+            if(req.body.function === 'convert'){
+                
+                // If the "Convert the image to" dropdown was the same file extension as the uploaded img 
+                // DO NOT perform the conversion just return the uploaded file
+                if(req.body.function === 'convert' && req.body.fileExt === uploadedImg.name.split('.')[1]){
+                    fs.moveSync(uploadedFilePath, processedFilePath);
+                    res.send('No conversion needed check processed');
+
+                //Otherwise perform the conversion
+                }else{
+                    convert(req, res, uploadedFilePath, processedFilePath);
+                }    
+            }
+            
+            //Call the resize function
+            if(req.body.function === 'resize')
+                resize(req, res, uploadedFilePath, processedFilePath);
+        });
+    });
+}
 
 
 
@@ -110,9 +135,7 @@ function convert(req, res, uploadedFilePath, processedFilePath) {
             })
             .toFile(processedFilePath)
             .then(() => {
-                fs.remove(uploadedFilePath);
-            }).then(() =>{
-                res.send('Converted to jpg check processed')
+                fs.removeSync(uploadedFilePath);
             });
 
     }else if(req.body.fileExt === 'png'){
@@ -120,20 +143,16 @@ function convert(req, res, uploadedFilePath, processedFilePath) {
             .png()
             .toFile(processedFilePath)
             .then(() => {
-                fs.remove(uploadedFilePath);
-            }).then(() => {
-                res.send('Converted to png check processed');
-            });
+                fs.removeSync(uploadedFilePath);
+            })
 
     }else if(req.body.fileExt === 'webp'){
         sharp(uploadedFilePath)
             .webp({effort: 0})
             .toFile(processedFilePath)
             .then(() => {
-                fs.remove(uploadedFilePath);
-            }).then(() => {
-                res.send('Converted to webp check processed');
-            });
+                fs.removeSync(uploadedFilePath);
+            })
     }else{
         res.status(400).send('No conversion performed options not selected');
     }
@@ -153,10 +172,6 @@ function resize(req, res, uploadedFilePath, processedFilePath) {
         .toFile(processedFilePath)
         .then(() => {
             //remove the uploaded file from uploaded folder 
-            fs.remove(uploadedFilePath)
-        }).then(() => {
-            //Try and trigger a download
-            //res.sendFile(processedFilePath, {headers: {'Content-Type': 'image/jpeg'}});
-            res.send('Resized check processed');
-        });
+            fs.removeSync(uploadedFilePath)
+        })
 }
