@@ -33,20 +33,33 @@ class Job{
          */
         function processImages() {
             imgArray.forEach(uploadedImg => {
+                // File path for the uploaded file using the original file name
                 let uploadedFilePath = `./Jobs/${user}/uploaded/` + uploadedImg.name;
+                // File path for the processed file
                 let processedFilePath = `./Jobs/${user}/processed/`;
+
+                //Store the uploaded image to the uploaded folder
                 uploadedImg.mv(uploadedFilePath, function(){
+                    //If convert was selected run the convert modes for sharp
                     if(request.body.function === 'convert'){
-                        if(request.body.function === 'convert' && request.body.fileExt === uploadedImg.name.split('.'[1])){
+                        // Check to see if the converted to file extension is the same thing (ie: User uploads a .jpg, user wants to convert it to a .jpg), there is no need to convert it so move it to processed
+                        if(request.body.fileExt === uploadedImg.name.split('.'[1])){
                             fs.moveSync(uploadedFilePath, processedFilePath + uploadedImg.name);
+                        
+                        // Set the new (converted to) file extension for the uploaded image
                         }else{
                             // Split the uploaded file name into [file name, file ext] get the name and append the converted extension to it
                             let convertedFileName = uploadedImg.name.split('.')[0] + '.' + request.body.fileExt;
+                            // Add the new file name to the processed path
                             processedFilePath += convertedFileName;
+                            // Run the conversion function
                             convert(request, uploadedFilePath, processedFilePath);
                         }
                     }
+
+                    // If resize mode was selected
                     if(request.body.function === 'resize')
+                        // Simply run the resize mode
                         resize(request, uploadedFilePath, processedFilePath + uploadedImg.name);
                 });
             });
@@ -108,24 +121,20 @@ class Job{
                 })
         }
 
+        // After we are done processing the uploaded image zip it up and store it in the zipped folder
+        // TODO: If a single image is uploaded no need to zip it up just send it out
         function zipProcessed(){
             // initialize AdamZip
             const zip = new AdmZip();
 
-            //Give a timestamp to the zipped folder
-            var timestamp = new Date().getTime();
-            
-            // TODO: Set this up as a download IF a single image is uploaded no need to zip it up just send it out
-            const outputFile = `./qc/Processed_Images_${Math.floor(timestamp)}.zip`;
+            const outputFile = `./Jobs/${user}/zipped/Processed_Images_${user}.zip`;
             
             //Add the processed image(s) to the zip
             zip.addLocalFolder(`./Jobs/${user}/processed`);
             zip.writeZip(outputFile);
-            //res.download(outputFile);
 
             //Clean out processed and zipped directories
             fs.emptyDir(`./Jobs/${user}/processed`);
-            fs.emptyDir(`./Jobs/${user}/zipped`);
         }
 
         //If imgs array contains one image we need to set the appropriate amount of time to wait until it has been zipped up
@@ -133,14 +142,8 @@ class Job{
             setTimeout(zipProcessed, process.env.MOD_SINGLE);
         } else {
             //delay the start of zip operation by length of imgArray * modifier (num of ms it takes on avg to process an img)
-            setTimeout(zipProcessed, imgArray.length*process.env.MOD_BATCH);    
+            setTimeout(zipProcessed, imgArray.length*process.env.MOD_BATCH);
         }
-
-        // Removes the UUID job folder after ___ seconds ensures enough time to download the zip file or image
-        function cleanUP() {
-            fs.rmSync(`./Jobs/${user}`, {recursive: true, force: true});
-        }
-        setTimeout(cleanUP, 15000);
     }
 }
 
