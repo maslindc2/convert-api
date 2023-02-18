@@ -22,6 +22,10 @@ app.listen(process.env.PORT, () => {
     console.log(`Listening on PORT ${process.env.PORT}`);
 });
 
+app.get('/', (req, res) =>{
+    res.send("Welcome to Convert API. ");
+})
+
 // This is where we will store pending jobs
 var JOB_QUEUE=[];
 
@@ -58,6 +62,8 @@ app.post('/upload', (req, res) => {
 app.get('/download/:uuid', (req, res) =>{
     res.download(`./Jobs/${req.params.uuid}/zipped/Processed_Images_${req.params.uuid}.zip`);
 })
+
+
 
 function checkJobQueue(req, res, uuid, imgsArray) {
     // If the JOB_QUEUE contains a job
@@ -97,3 +103,5 @@ function checkJobQueue(req, res, uuid, imgsArray) {
         }
     }
 }
+
+module.exports = app;
