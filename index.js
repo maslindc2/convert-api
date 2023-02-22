@@ -14,7 +14,7 @@ app.use(fileUpload());
 
 
 // Create the Jobs directory where each processing job will be located
-fs.emptyDir('./Jobs');
+fs.emptyDir('./tmp/Jobs');
 
 
 // Start listening for requests on assigned port
@@ -60,7 +60,7 @@ app.post('/upload', (req, res) => {
 
 // UUID Download endpoint: after a file has been processed we are redirected to this endpoint and download the zip file
 app.get('/download/:uuid', (req, res) =>{
-    res.download(`./Jobs/${req.params.uuid}/zipped/Processed_Images_${req.params.uuid}.zip`);
+    res.download(`./tmp/Jobs/${req.params.uuid}/zipped/Processed_Images_${req.params.uuid}.zip`);
 })
 
 
@@ -83,7 +83,7 @@ function checkJobQueue(req, res, uuid, imgsArray) {
             setTimeout(redirectAfterProcessed, process.env.MOD_SINGLE+5);
             
             function cleanUP() {
-                fs.rmSync(`./Jobs/${uuid}`, {recursive: true, force: true});
+                fs.rmSync(`./tmp/Jobs/${uuid}`, {recursive: true, force: true});
             }
             setTimeout(cleanUP, process.env.RM_Timeout);
         
@@ -96,7 +96,7 @@ function checkJobQueue(req, res, uuid, imgsArray) {
             setTimeout(redirectAfterProcessed, imgsArray.length*process.env.MOD_BATCH+5);
             
             function cleanUP() {
-                fs.rmSync(`./Jobs/${uuid}`, {recursive: true, force: true});
+                fs.rmSync(`./tmp/Jobs/${uuid}`, {recursive: true, force: true});
             }
             // Remove the job after a specified amount of time should be enough time for the zip file to download
             setTimeout(cleanUP, process.env.RM_Timeout);

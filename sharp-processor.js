@@ -16,10 +16,10 @@ class Job{
         let imgArray = this.imgs;
 
         //Create a folder using the UUID, setup processed, uploaded, and zipped folders
-        fs.emptyDir(`./Jobs/${user}`)
-        fs.emptyDir(`./Jobs/${user}/processed`);
-        fs.emptyDir(`./Jobs/${user}/uploaded`);
-        fs.emptyDir(`./Jobs/${user}/zipped`);
+        fs.emptyDir(`./tmp/Jobs/${user}`)
+        fs.emptyDir(`./tmp/Jobs/${user}/processed`);
+        fs.emptyDir(`./tmp/Jobs/${user}/uploaded`);
+        fs.emptyDir(`./tmp/Jobs/${user}/zipped`);
 
         /**
          * Process the image(s) that were uploaded using the imgArray
@@ -34,9 +34,9 @@ class Job{
         function processImages() {
             imgArray.forEach(uploadedImg => {
                 // File path for the uploaded file using the original file name
-                let uploadedFilePath = `./Jobs/${user}/uploaded/` + uploadedImg.name;
+                let uploadedFilePath = `./tmp/Jobs/${user}/uploaded/` + uploadedImg.name;
                 // File path for the processed file
-                let processedFilePath = `./Jobs/${user}/processed/`;
+                let processedFilePath = `./tmp/Jobs/${user}/processed/`;
 
                 //Store the uploaded image to the uploaded folder
                 uploadedImg.mv(uploadedFilePath, function(){
@@ -127,14 +127,14 @@ class Job{
             // initialize AdamZip
             const zip = new AdmZip();
 
-            const outputFile = `./Jobs/${user}/zipped/Processed_Images_${user}.zip`;
+            const outputFile = `./tmp/Jobs/${user}/zipped/Processed_Images_${user}.zip`;
             
             //Add the processed image(s) to the zip
-            zip.addLocalFolder(`./Jobs/${user}/processed`);
+            zip.addLocalFolder(`./tmp/Jobs/${user}/processed`);
             zip.writeZip(outputFile);
 
             //Clean out processed and zipped directories
-            fs.emptyDir(`./Jobs/${user}/processed`);
+            fs.emptyDir(`./tmp/Jobs/${user}/processed`);
         }
 
         //If imgs array contains one image we need to set the appropriate amount of time to wait until it has been zipped up
