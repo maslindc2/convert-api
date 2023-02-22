@@ -1,14 +1,14 @@
 {
     "builds": [
         {
-            "src": "convert-backend.js",
+            "src": "index.js",
             "use": "@vercel/node"
         }
     ],
     "routes": [
         {
           "src": "/(.*)",
-          "dest": "convert-backend.js"
+          "dest": "index.js"
         }
     ]
   }
